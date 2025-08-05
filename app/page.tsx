@@ -2,13 +2,14 @@
 
 import { useChat } from '@ai-sdk/react';
 import { useEffect, useRef } from 'react';
-import ChatInput from '@/component/chat-input';
+import ChatInput from '@/components/chat-input';
 
 export default function Chat() {
   const { error, status, sendMessage, messages, regenerate, stop } = useChat();
 
   // Track logged parts for the current message
   const loggedPartsRef = useRef<Map<string, { length: number, messageId: string }>>(new Map());
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -67,49 +68,59 @@ export default function Chat() {
     }
   }, [messages, status]);
 
+  console.log('[app/page.tsx:71] messages:', messages);
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
   return (
-    <div className="flex flex-col w-full max-w-md py-24 mx-auto stretch">
-      {messages.map(m => (
-        <div key={m.id} className="whitespace-pre-wrap">
-          {m.role === 'user' ? 'User: ' : 'AI: '}
-          {m.parts.map(part => {
-            if (part.type === 'reasoning') {
-              return <span key={part.text.slice(10)} className="text-blue-500">{part.text}</span>;
-            }
-            if (part.type === 'text') {
-              return part.text;
-            }
-          })}
-        </div>
-      ))}
+    <div className="flex flex-col w-full max-w-md mx-auto h-[100dvh]" style={{ paddingBottom: '40px' }}>
+      <div className="flex-1 overflow-y-auto px-4 py-8 space-y-4">
+        {messages.map(m => (
+          <div key={m.id} className={`${m.role === 'user' ? 'text-right' : 'text-left'}`}>
+            <div className={`inline-block max-w-[80%] p-3 rounded-lg ${
+              m.role === 'user' 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-gray-100 text-gray-800'
+            }`}>
+              {m.parts.map(part => {
+                if (part.type === 'reasoning') {
+                  return <span key={part.text.slice(10)} className="text-blue-300 italic">{part.text}</span>;
+                }
+                if (part.type === 'text') {
+                  return part.text;
+                }
+              })}
+            </div>
+          </div>
+        ))}
+        
+        {status === 'submitted' && (
+          <div className="text-gray-500">Loading...</div>
+        )}
 
-      {(status === 'submitted' || status === 'streaming') && (
-        <div className="mt-4 text-gray-500">
-          {status === 'submitted' && <div>Loading...</div>}
-          <button
-            type="button"
-            className="px-4 py-2 mt-4 text-blue-500 border border-blue-500 rounded-md"
-            onClick={stop}
-          >
-            Stop
-          </button>
-        </div>
-      )}
+        {error && (
+          <div className="text-center">
+            <div className="text-red-500 mb-2">An error occurred.</div>
+            <button
+              type="button"
+              className="px-4 py-2 text-blue-500 border border-blue-500 rounded-md hover:bg-blue-50"
+              onClick={() => regenerate()}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+        
+        <div ref={messagesEndRef} />
+      </div>
 
-      {error && (
-        <div className="mt-4">
-          <div className="text-red-500">An error occurred.</div>
-          <button
-            type="button"
-            className="px-4 py-2 mt-4 text-blue-500 border border-blue-500 rounded-md"
-            onClick={() => regenerate()}
-          >
-            Retry
-          </button>
-        </div>
-      )}
-
-      <ChatInput status={status} onSubmit={text => sendMessage({ text })} />
+      <ChatInput 
+        status={status} 
+        onSubmit={text => sendMessage({ text })} 
+        onStop={stop}
+      />
     </div>
   );
 }
